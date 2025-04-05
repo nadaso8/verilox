@@ -14,13 +14,15 @@
         <Definition Index> is the 0 indexed position of that definition within the section.
 */
 
-use std::{num::NonZero, rc::Rc};
-
 use nom::{
     self,
-    character::Char,
-    error::{Error, ErrorKind},
-    IResult,
+    branch::alt,
+    bytes::streaming::tag,
+    character::streaming::{alpha1, alphanumeric1},
+    combinator::recognize,
+    multi::many0_count,
+    sequence::pair,
+    IResult, Parser,
 };
 
 pub trait AST: Sized {
@@ -32,7 +34,7 @@ struct ASTNodeLocation {
     line: usize,
     head: usize,
     tail: usize,
-    file: Rc<std::path::Path>,
+    file: std::path::PathBuf,
 }
 
 enum ParserErr {
@@ -54,7 +56,9 @@ impl AST for SourceText {
 
 /// A.9.3 Identifiers DEF:
 #[derive(Debug)]
-struct SimpleIdentifier {}
+struct SimpleIdentifier {
+    body: Box<str>,
+}
 
 impl AST for SimpleIdentifier {
     fn gen_ast(i: &str) -> nom::IResult<&str, Self, ParserErr> {
@@ -64,7 +68,9 @@ impl AST for SimpleIdentifier {
 
 /// A.9.3 Identifiers DEF:
 #[derive(Debug)]
-struct EscapedIdentifier {}
+struct EscapedIdentifier {
+    body: Box<str>,
+}
 
 impl AST for EscapedIdentifier {
     fn gen_ast(i: &str) -> nom::IResult<&str, Self, ParserErr> {
@@ -76,8 +82,8 @@ impl AST for EscapedIdentifier {
 ///
 /// Note that while the formal syntax contains EOF as a success
 /// state for its definition of whitespace this is conflicting
-/// with section 5.3's defition which makes no such mention of
-/// EOF. I have decided to not include it in my implementation
+/// with section 5.3's defition which makes no mention ofEOF.
+/// I have decided to not include it in my implementation
 /// since it could lead to various undesierable edge cases such
 /// infinite loops when parsing empty files.
 #[derive(Debug)]
@@ -85,30 +91,21 @@ enum WhiteSpace {
     Space,
     Tab,
     Newline,
-    Formfeed,
 }
 
 impl AST for WhiteSpace {
     fn gen_ast(i: &str) -> nom::IResult<&str, Self, ParserErr> {
-        let (_consumed, remainder) = match i.len() {
-            0 | 1 => (i, ""),
+        let (consumed, remainder) = match i.len() {
+            0 => return IResult::Err(nom::Err::Incomplete(nom::Needed::new(1))),
+            1 => (i, ""),
             _ => i.split_at(1),
         };
 
-        const SPACE: &u8 = &32;
-        const TAB: &u8 = &9;
-        const NEW_LINE: &u8 = &10;
-        const FORM_FEED: &u8 = &12;
-
-        match i.as_bytes().first() {
-            Some(SPACE) => IResult::Ok((remainder, WhiteSpace::Space)),
-            Some(TAB) => IResult::Ok((remainder, WhiteSpace::Tab)),
-            Some(NEW_LINE) => IResult::Ok((remainder, WhiteSpace::Newline)),
-            Some(FORM_FEED) => IResult::Ok((remainder, WhiteSpace::Formfeed)),
-            Some(_char) => IResult::Err(nom::Err::Error(ParserErr::WhiteSpace)),
-            None => IResult::Err(nom::Err::Incomplete(nom::Needed::Size(
-                NonZero::new(1).unwrap(),
-            ))),
+        match consumed {
+            " " => IResult::Ok((remainder, WhiteSpace::Space)),
+            "\t" => IResult::Ok((remainder, WhiteSpace::Tab)),
+            "\n" => IResult::Ok((remainder, WhiteSpace::Newline)),
+            _ => IResult::Err(nom::Err::Error(ParserErr::WhiteSpace)),
         }
     }
 }
@@ -118,7 +115,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn basic() {
+    fn white_space() {
+        todo!()
+    }
+
+    #[test]
+    fn simple_identifier() {
+        todo!()
+    }
+
+    #[test]
+    fn escaped_identifier() {
         todo!()
     }
 }
